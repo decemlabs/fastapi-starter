@@ -1,0 +1,85 @@
+[project]
+name = "fastapi-starter"
+version = "0.1.0"
+description = "Production-ready FastAPI backend template — Clean Architecture, DDD-lite, CQRS-lite."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "pydantic[email]>=2.9",
+    "pydantic-settings>=2.5",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "dishka>=1.4",
+    "pyjwt[crypto]>=2.10",
+    "pwdlib[argon2]>=0.2.1",
+    "structlog>=24.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "aiosqlite>=0.20",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pyright>=1.1.390",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "ASYNC", "ANN", "RUF"]
+ignore = []  # ANN401 left on: ruff also rejects `Any` in annotations (3rd no-Any layer)
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/*" = ["ANN", "E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app", "tests"]
+exclude = ["migrations/"]
+warn_unreachable = true
+enable_error_code = ["redundant-expr", "possibly-undefined", "truthy-bool"]
+
+[tool.pyright]
+include = ["app", "tests"]
+exclude = ["**/__pycache__", ".venv", "migrations"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = true
+
+# Dishka types `provide`'s `source` param with unparameterized classmethod/
+# staticmethod in its published stubs, which pyright renders as `Unknown`
+# (triggers reportUnknownVariableType on the `provide` import). There is no
+# code-level way to register providers without `provide`, so we scope that one
+# report to the providers package. Only reportUnknownVariableType is triggered;
+# nothing else is relaxed.
+[[tool.pyright.executionEnvironments]]
+root = "app/ioc"
+extraPaths = ["."]
+reportUnknownVariableType = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

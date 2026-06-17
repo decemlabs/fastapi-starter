@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Claude Code / session runtime state (keep the checked-in project rules)
+.instance/
+.claude/*
+!.claude/rules/
+
+# uv
+# (uv.lock IS committed — it pins the dependency graph)

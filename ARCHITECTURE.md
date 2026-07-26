@@ -21,16 +21,26 @@ api  →  application  →  domain  ←  infrastructure
 This keeps business rules independent of frameworks and databases, so they are
 fast to test and slow to rot.
 
+The rule is **machine-enforced**: `uv run lint-imports` (part of `make check`
+and CI) checks the layer ordering and forbids the inner layers from importing
+infrastructure or any framework. See `[tool.importlinter]` in pyproject.toml —
+extend the contracts when you add a layer.
+
 ## Layers
 
 ### domain (`app/domain/`)
 Enterprise rules with zero I/O. Contains:
 - **Value objects** (`Email`, `UserId`, `HashedPassword`) — immutable, validated
   on construction, compared by value. They make illegal states unrepresentable.
-- **Entities / aggregate roots** (`User`) — identity-based equality, behaviour
-  and invariants. Construct via factory methods (`User.create`).
-- **Repository ports** (`UserRepository`) — `Protocol` interfaces the domain
-  depends on; implemented in infrastructure.
+- **Entities / aggregate roots** (`User`, `RefreshTokenRecord`) —
+  identity-based equality, behaviour and invariants. Construct via factory
+  methods (`User.create`).
+- **Domain events** (`UserRegistered`) — recorded by aggregates
+  (`record_event`), drained with `pull_events()` and dispatched by the
+  application layer **after** a successful commit, via the `EventDispatcher`
+  port (in-process adapter by default; outbox is the documented upgrade).
+- **Repository ports** (`UserRepository`, `RefreshTokenRepository`) —
+  `Protocol` interfaces the domain depends on; implemented in infrastructure.
 - **Domain errors** — framework-agnostic; mapped to HTTP later.
 
 ### application (`app/application/`)
@@ -129,8 +139,20 @@ Each step touches exactly one layer; the compiler/type checker guides you.
 
 ## Testing strategy
 
-- **Unit tests** target the domain — pure, no I/O, microsecond-fast.
+Three tiers, each earning its place:
+
+- **Unit tests** — the domain, plus every command handler over the in-memory
+  fakes in `tests/fakes` (one double per port, structural, no inheritance).
+  Pure, no I/O, microsecond-fast.
 - **Integration tests** boot the real app (`create_app`) with an in-memory
-  SQLite database, exercising routers → DI → use cases → ORM end to end without
-  external services. Swapping `DATABASE__URL` is all it takes because the DB is
-  behind a port.
+  SQLite database, exercising routers → DI → use cases → ORM end to end
+  without external services. Adapters that need Redis or burn CPU (Argon2)
+  are replaced through the container's override seam:
+  `create_app(settings, extra_providers=(InMemoryAdaptersProvider(),))` —
+  a provider whose bindings carry `override=True` wins over the defaults.
+- **Postgres tier** (`make test-pg`, marker `pg`, needs Docker) — a real
+  `postgres:17` via testcontainers. The schema comes from the actual Alembic
+  chain (never `create_all`), so migrations are executed on every run; the
+  tier also proves dialect behaviour (tz-aware datetimes, unique-violation
+  classes, concurrent races) and asserts an empty autogenerate diff — models
+  and migrations cannot drift.

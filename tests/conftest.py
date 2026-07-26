@@ -8,7 +8,7 @@ against an in-memory SQLite database, so they exercise real wiring without
 needing Postgres. Each test gets a fresh app + schema for isolation.
 """
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
 from dishka import AsyncContainer
@@ -23,16 +23,27 @@ from app.core.config import (
     Environment,
     JwtSettings,
     Settings,
+    get_settings,
 )
 from app.infrastructure.database.models.base import Base
 from app.main import create_app
 
 
+@pytest.fixture(autouse=True)
+def reset_settings_cache() -> Iterator[None]:
+    """Keep ``get_settings()`` from leaking cached state between tests."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 def _test_settings() -> Settings:
     return Settings(
         environment=Environment.TEST,
-        app=AppSettings(name="test", debug=True),
-        database=DatabaseSettings(url="sqlite+aiosqlite:///:memory:"),
+        # debug=False keeps Starlette's debug tracebacks out of the way so the
+        # catch-all problem+json handler is exercised exactly as in production.
+        app=AppSettings(name="test", debug=False),
+        database=DatabaseSettings(url=SecretStr("sqlite+aiosqlite:///:memory:")),
         jwt=JwtSettings(
             secret=SecretStr("test-secret-key-please-change-0123456789")  # >=32 bytes
         ),
@@ -55,3 +66,12 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as http_client:
         yield http_client
+
+
+@pytest.fixture
+async def auth_headers(client: AsyncClient) -> dict[str, str]:
+    """Registers a user and returns a valid bearer-token header."""
+    credentials = {"email": "fixture-user@example.com", "password": "supersecret"}
+    await client.post("/api/v1/auth/register", json=credentials)
+    response = await client.post("/api/v1/auth/login", json=credentials)
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}

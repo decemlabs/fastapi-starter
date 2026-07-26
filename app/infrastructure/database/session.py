@@ -12,16 +12,17 @@ from app.core.config import DatabaseSettings
 
 
 def create_engine(settings: DatabaseSettings) -> AsyncEngine:
-    if settings.url.startswith("sqlite"):
+    url = settings.url.get_secret_value()
+    if url.startswith("sqlite"):
         # In-memory SQLite (used in tests) needs a single shared connection.
         return create_async_engine(
-            settings.url,
+            url,
             echo=settings.echo,
             poolclass=StaticPool,
             connect_args={"check_same_thread": False},
         )
     return create_async_engine(
-        settings.url,
+        url,
         echo=settings.echo,
         pool_size=settings.pool_size,
         max_overflow=settings.max_overflow,

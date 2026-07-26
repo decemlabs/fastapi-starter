@@ -6,6 +6,7 @@
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, status
 
+from app.api.exception_handlers import problem_responses
 from app.api.v1.auth.schemas import (
     LoginRequest,
     RefreshRequest,
@@ -27,7 +28,10 @@ router = APIRouter(prefix="/auth", tags=["auth"], route_class=DishkaRoute)
 
 
 @router.post(
-    "/register", status_code=status.HTTP_201_CREATED, response_model=UserResponse
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    response_model=UserResponse,
+    responses=problem_responses(409),
 )
 async def register(
     body: RegisterRequest,
@@ -39,7 +43,7 @@ async def register(
     return UserResponse.model_validate(view)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, responses=problem_responses(401))
 async def login(
     body: LoginRequest,
     handler: FromDishka[LoginHandler],
@@ -54,7 +58,7 @@ async def login(
     )
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse, responses=problem_responses(401))
 async def refresh(
     body: RefreshRequest,
     handler: FromDishka[RefreshTokenHandler],

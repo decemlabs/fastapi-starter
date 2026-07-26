@@ -5,11 +5,14 @@
 
 from fastapi import APIRouter
 
+from app.api.exception_handlers import problem_responses
 from app.api.v1.auth.router import router as auth_router
 from app.api.v1.health.router import router as health_router
 from app.api.v1.users.router import router as users_router
 
-api_v1_router = APIRouter(prefix="/api/v1")
+# Every route shares the problem+json error contract; per-router responses
+# below add the statuses specific to their endpoints.
+api_v1_router = APIRouter(prefix="/api/v1", responses=problem_responses(422, 500))
 api_v1_router.include_router(health_router)
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(users_router)

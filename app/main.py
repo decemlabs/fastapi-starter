@@ -6,7 +6,9 @@ an isolated configuration (e.g. an in-memory database).
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from importlib.metadata import PackageNotFoundError, version
 
+import structlog
 from dishka import AsyncContainer
 from dishka.integrations.fastapi import setup_dishka
 from fastapi import FastAPI
@@ -18,6 +20,18 @@ from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.ioc.container import create_container
 
+logger = structlog.get_logger()
+
+# Distribution name from pyproject.toml — part of the project-rename checklist.
+_DIST_NAME = "fastapi-starter"
+
+
+def _app_version() -> str:
+    try:
+        return version(_DIST_NAME)
+    except PackageNotFoundError:  # running from a plain checkout
+        return "0.0.0"
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved = settings if settings is not None else get_settings()
@@ -27,13 +41,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+        logger.info(
+            "app.startup",
+            app=resolved.app.name,
+            environment=resolved.environment,
+            debug=resolved.app.debug,
+        )
         yield
         await container.close()
+        logger.info("app.shutdown", app=resolved.app.name)
 
     app = FastAPI(
         title=resolved.app.name,
+        version=_app_version(),
         debug=resolved.app.debug,
         lifespan=lifespan,
+        # Interactive docs and the schema are dev/staging conveniences; a
+        # production API should not advertise its full surface.
+        docs_url=None if resolved.is_production else "/docs",
+        redoc_url=None if resolved.is_production else "/redoc",
+        openapi_url=None if resolved.is_production else "/openapi.json",
     )
     setup_dishka(container, app)
     setup_middleware(app, resolved)

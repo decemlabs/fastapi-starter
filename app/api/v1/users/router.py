@@ -7,6 +7,7 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Query, status
 
 from app.api.dependencies.auth import CurrentUser
+from app.api.exception_handlers import problem_responses
 from app.api.v1.users.schemas import (
     CreateUserRequest,
     UserPageResponse,
@@ -19,7 +20,12 @@ from app.application.users.commands.create_user import (
 from app.application.users.queries.get_user import GetUserHandler, GetUserQuery
 from app.application.users.queries.list_users import ListUsersHandler, ListUsersQuery
 
-router = APIRouter(prefix="/users", tags=["users"], route_class=DishkaRoute)
+router = APIRouter(
+    prefix="/users",
+    tags=["users"],
+    route_class=DishkaRoute,
+    responses=problem_responses(401),
+)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UserResponse)

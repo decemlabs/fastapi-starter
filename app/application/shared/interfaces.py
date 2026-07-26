@@ -5,12 +5,14 @@ libraries, password hashers, ORMs). Dependencies point inward: infrastructure
 depends on these, not the other way around.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 from uuid import UUID
 
 from app.domain.auth.repositories import RefreshTokenRepository
+from app.domain.shared.events import DomainEvent
 from app.domain.users.repositories import UserRepository
 
 # The two kinds of token this application issues.
@@ -21,6 +23,16 @@ class Clock(Protocol):
     """Abstraction over 'now', so time-dependent logic is testable."""
 
     def now(self) -> datetime: ...
+
+
+class EventDispatcher(Protocol):
+    """Delivers domain events after a successful commit.
+
+    The in-process adapter is the lean default; a transactional outbox is the
+    production upgrade path (see app/infrastructure/messaging/README.md).
+    """
+
+    async def dispatch(self, events: Sequence[DomainEvent]) -> None: ...
 
 
 class PasswordHasher(Protocol):

@@ -14,6 +14,7 @@ from app.core.config import Settings
 from app.ioc.providers.cache import CacheProvider
 from app.ioc.providers.config import ConfigProvider
 from app.ioc.providers.database import DatabaseProvider
+from app.ioc.providers.events import EventsProvider
 from app.ioc.providers.security import SecurityProvider
 from app.ioc.providers.use_cases import UseCasesProvider
 
@@ -30,6 +31,7 @@ def create_container(settings: Settings, *extra_providers: Provider) -> AsyncCon
         DatabaseProvider(),
         SecurityProvider(),
         CacheProvider(),
+        EventsProvider(),
         UseCasesProvider(),
         FastapiProvider(),
         *extra_providers,

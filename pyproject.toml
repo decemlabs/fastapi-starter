@@ -97,6 +97,21 @@ root = "app/ioc"
 extraPaths = ["."]
 reportUnknownVariableType = false
 
+# redis-py types `Redis.from_url` with `**kwargs: Unknown`, so the one factory
+# that constructs the client trips reportUnknownMemberType. Scoped to the cache
+# adapter package; nothing else is relaxed.
+[[tool.pyright.executionEnvironments]]
+root = "app/infrastructure/cache"
+extraPaths = ["."]
+reportUnknownMemberType = false
+
+# tests/fakes defines Dishka override providers, so it needs the same scoped
+# `provide` relaxation as app/ioc (see the comment there).
+[[tool.pyright.executionEnvironments]]
+root = "tests/fakes"
+extraPaths = ["."]
+reportUnknownVariableType = false
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

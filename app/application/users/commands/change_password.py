@@ -32,11 +32,13 @@ class ChangePasswordHandler:
         user = await self._uow.users.get_by_id(UserId(command.user_id))
         if user is None:
             raise UserNotFoundError
-        if not self._hasher.verify(
+        if not await self._hasher.verify(
             command.current_password, user.hashed_password.value
         ):
             raise InvalidCredentialsError
 
-        user.change_password(HashedPassword(self._hasher.hash(command.new_password)))
+        user.change_password(
+            HashedPassword(await self._hasher.hash(command.new_password))
+        )
         await self._uow.users.update(user)
         await self._uow.commit()

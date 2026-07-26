@@ -55,6 +55,12 @@ class RedisSettings(BaseModel):
     url: SecretStr = SecretStr("redis://localhost:6379/0")
 
 
+class RateLimitSettings(BaseModel):
+    # Applies to the public auth endpoints (login/register), per client IP.
+    auth_requests: int = 10
+    auth_window_seconds: int = 60
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -68,6 +74,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     jwt: JwtSettings = Field(default_factory=JwtSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
+    rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
 
     @property
     def is_production(self) -> bool:

@@ -4,8 +4,9 @@
 """Auth API endpoints: public registration, login, and token refresh."""
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
+from app.api.dependencies.rate_limit import rate_limit_auth
 from app.api.exception_handlers import problem_responses
 from app.api.v1.auth.schemas import (
     LoginRequest,
@@ -31,7 +32,8 @@ router = APIRouter(prefix="/auth", tags=["auth"], route_class=DishkaRoute)
     "/register",
     status_code=status.HTTP_201_CREATED,
     response_model=UserResponse,
-    responses=problem_responses(409),
+    responses=problem_responses(409, 429),
+    dependencies=[Depends(rate_limit_auth)],
 )
 async def register(
     body: RegisterRequest,
@@ -43,7 +45,12 @@ async def register(
     return UserResponse.model_validate(view)
 
 
-@router.post("/login", response_model=TokenResponse, responses=problem_responses(401))
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    responses=problem_responses(401, 429),
+    dependencies=[Depends(rate_limit_auth)],
+)
 async def login(
     body: LoginRequest,
     handler: FromDishka[LoginHandler],

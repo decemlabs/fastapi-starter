@@ -38,8 +38,11 @@ class LoginHandler:
 
         user = await self._uow.users.get_by_email(email)
         if user is None or not user.is_active:
+            # Hash anyway so unknown and known accounts take the same time —
+            # otherwise response timing reveals which emails are registered.
+            await self._hasher.hash(command.password)
             raise InvalidCredentialsError
-        if not self._hasher.verify(command.password, user.hashed_password.value):
+        if not await self._hasher.verify(command.password, user.hashed_password.value):
             raise InvalidCredentialsError
 
         subject = str(user.id)

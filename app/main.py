@@ -4,12 +4,12 @@
 an isolated configuration (e.g. an in-memory database).
 """
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError, version
 
 import structlog
-from dishka import AsyncContainer
+from dishka import AsyncContainer, Provider
 from dishka.integrations.fastapi import setup_dishka
 from fastapi import FastAPI
 
@@ -33,11 +33,20 @@ def _app_version() -> str:
         return "0.0.0"
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    extra_providers: Sequence[Provider] = (),
+) -> FastAPI:
+    """Builds the application.
+
+    ``extra_providers`` is the test seam: providers declared with
+    ``override=True`` replace default container bindings (e.g. an in-memory
+    rate limiter instead of Redis).
+    """
     resolved = settings if settings is not None else get_settings()
     configure_logging(resolved)
 
-    container: AsyncContainer = create_container(resolved)
+    container: AsyncContainer = create_container(resolved, *extra_providers)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:

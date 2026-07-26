@@ -22,11 +22,31 @@ class Clock(Protocol):
 
 
 class PasswordHasher(Protocol):
-    """Hashes and verifies passwords. The algorithm lives in infrastructure."""
+    """Hashes and verifies passwords. The algorithm lives in infrastructure.
 
-    def hash(self, plain_password: str) -> str: ...
+    Async because password hashing is deliberately CPU-expensive: adapters
+    offload to a worker thread so the event loop keeps serving requests.
+    """
 
-    def verify(self, plain_password: str, hashed_password: str) -> bool: ...
+    async def hash(self, plain_password: str) -> str: ...
+
+    async def verify(self, plain_password: str, hashed_password: str) -> bool: ...
+
+
+@dataclass(frozen=True, slots=True)
+class RateLimitDecision:
+    """Outcome of a rate-limit check."""
+
+    allowed: bool
+    retry_after_seconds: int
+
+
+class RateLimiter(Protocol):
+    """Counts requests per key within a time window (backend in infrastructure)."""
+
+    async def check(
+        self, key: str, limit: int, window_seconds: int
+    ) -> RateLimitDecision: ...
 
 
 @dataclass(frozen=True, slots=True)

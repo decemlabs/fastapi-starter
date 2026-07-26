@@ -40,7 +40,7 @@ class CreateUserHandler:
         user = User.create(
             user_id=UserId.new(),
             email=email,
-            hashed_password=HashedPassword(self._hasher.hash(command.password)),
+            hashed_password=HashedPassword(await self._hasher.hash(command.password)),
             created_at=self._clock.now(),
         )
         await self._uow.users.add(user)

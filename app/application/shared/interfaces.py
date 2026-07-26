@@ -102,8 +102,14 @@ class UnitOfWork(Protocol):
     when its scope closes (the DI container owns the session lifecycle).
     """
 
-    users: UserRepository
-    refresh_tokens: RefreshTokenRepository
+    # Declared as read-only properties so implementations (and test fakes)
+    # may expose more specific repository types — attributes would be
+    # invariant and reject them.
+    @property
+    def users(self) -> UserRepository: ...
+
+    @property
+    def refresh_tokens(self) -> RefreshTokenRepository: ...
 
     async def commit(self) -> None: ...
 

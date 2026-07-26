@@ -36,6 +36,7 @@ def make_test_settings(
     *,
     auth_rate_limit_requests: int = 100,
     allowed_hosts: list[str] | None = None,
+    database_url: str = "sqlite+aiosqlite:///:memory:",
 ) -> Settings:
     return Settings(
         environment=Environment.TEST,
@@ -46,7 +47,7 @@ def make_test_settings(
             debug=False,
             allowed_hosts=allowed_hosts if allowed_hosts is not None else ["*"],
         ),
-        database=DatabaseSettings(url=SecretStr("sqlite+aiosqlite:///:memory:")),
+        database=DatabaseSettings(url=SecretStr(database_url)),
         jwt=JwtSettings(
             secret=SecretStr("test-secret-key-please-change-0123456789")  # >=32 bytes
         ),
@@ -54,13 +55,18 @@ def make_test_settings(
     )
 
 
-async def build_test_app(settings: Settings) -> FastAPI:
-    """Creates the app with test overrides and a fresh schema."""
+async def build_test_app(settings: Settings, *, create_schema: bool = True) -> FastAPI:
+    """Creates the app with test overrides (and, for SQLite, a fresh schema).
+
+    The Postgres tier passes ``create_schema=False`` — there the schema comes
+    from the real Alembic migration chain, never ``create_all``.
+    """
     application = create_app(settings, extra_providers=(InMemoryAdaptersProvider(),))
     container: AsyncContainer = application.state.dishka_container
-    engine = await container.get(AsyncEngine)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    if create_schema:
+        engine = await container.get(AsyncEngine)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     return application
 
 

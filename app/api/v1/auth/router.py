@@ -10,12 +10,14 @@ from app.api.dependencies.rate_limit import rate_limit_auth
 from app.api.exception_handlers import problem_responses
 from app.api.v1.auth.schemas import (
     LoginRequest,
+    LogoutRequest,
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
 )
 from app.api.v1.users.schemas import UserResponse
 from app.application.auth.commands.login import LoginCommand, LoginHandler
+from app.application.auth.commands.logout import LogoutCommand, LogoutHandler
 from app.application.auth.commands.refresh_token import (
     RefreshTokenCommand,
     RefreshTokenHandler,
@@ -63,6 +65,18 @@ async def login(
         refresh_token=tokens.refresh_token,
         token_type=tokens.token_type,
     )
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=problem_responses(401),
+)
+async def logout(
+    body: LogoutRequest,
+    handler: FromDishka[LogoutHandler],
+) -> None:
+    await handler.execute(LogoutCommand(refresh_token=body.refresh_token))
 
 
 @router.post("/refresh", response_model=TokenResponse, responses=problem_responses(401))

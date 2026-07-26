@@ -8,8 +8,12 @@ from typing import Final
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.auth.repositories import RefreshTokenRepository
 from app.domain.users.exceptions import EmailAlreadyExistsError
 from app.domain.users.repositories import UserRepository
+from app.infrastructure.database.repositories.refresh_token_repository import (
+    SqlAlchemyRefreshTokenRepository,
+)
 from app.infrastructure.database.repositories.user_repository import (
     SqlAlchemyUserRepository,
 )
@@ -34,6 +38,9 @@ class SqlAlchemyUnitOfWork:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self.users: UserRepository = SqlAlchemyUserRepository(session)
+        self.refresh_tokens: RefreshTokenRepository = SqlAlchemyRefreshTokenRepository(
+            session
+        )
 
     async def commit(self) -> None:
         try:

@@ -8,7 +8,9 @@ depends on these, not the other way around.
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
+from uuid import UUID
 
+from app.domain.auth.repositories import RefreshTokenRepository
 from app.domain.users.repositories import UserRepository
 
 # The two kinds of token this application issues.
@@ -55,14 +57,27 @@ class TokenPayload:
 
     subject: str
     token_type: TokenType
+    token_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class IssuedToken:
+    """A freshly signed token plus the metadata the caller must persist."""
+
+    token: str
+    expires_at: datetime
 
 
 class TokenService(Protocol):
-    """Issues and decodes authentication tokens."""
+    """Issues and decodes authentication tokens.
+
+    Refresh tokens carry a caller-supplied ``jti`` so the caller can persist
+    a matching server-side record (rotation/revocation state).
+    """
 
     def create_access_token(self, subject: str) -> str: ...
 
-    def create_refresh_token(self, subject: str) -> str: ...
+    def create_refresh_token(self, subject: str, token_id: UUID) -> IssuedToken: ...
 
     def decode(self, token: str) -> TokenPayload: ...
 
@@ -76,6 +91,7 @@ class UnitOfWork(Protocol):
     """
 
     users: UserRepository
+    refresh_tokens: RefreshTokenRepository
 
     async def commit(self) -> None: ...
 

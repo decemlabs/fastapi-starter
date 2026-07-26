@@ -23,7 +23,11 @@ from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.constants import REQUEST_ID_HEADER
-from app.domain.auth.exceptions import InvalidCredentialsError, InvalidTokenError
+from app.domain.auth.exceptions import (
+    InvalidCredentialsError,
+    InvalidTokenError,
+    TokenExpiredError,
+)
 from app.domain.shared.exceptions import DomainError, ValidationError
 from app.domain.users.exceptions import EmailAlreadyExistsError, UserNotFoundError
 
@@ -73,6 +77,12 @@ _ERROR_MAP: Final[dict[type[DomainError], _ErrorSpec]] = {
         status.HTTP_401_UNAUTHORIZED,
         "invalid-token",
         "Invalid token",
+    ),
+    # Distinct problem type so clients can tell "refresh" from "re-login".
+    TokenExpiredError: (
+        status.HTTP_401_UNAUTHORIZED,
+        "token-expired",
+        "Token expired",
     ),
     ValidationError: (
         status.HTTP_422_UNPROCESSABLE_CONTENT,

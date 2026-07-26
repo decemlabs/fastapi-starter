@@ -10,7 +10,7 @@ the aggregate's own method → ``repository.update`` → ``commit``.
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.application.shared.interfaces import PasswordHasher, UnitOfWork
+from app.application.shared.interfaces import Clock, PasswordHasher, UnitOfWork
 from app.domain.auth.exceptions import InvalidCredentialsError
 from app.domain.users.exceptions import UserNotFoundError
 from app.domain.users.value_objects import HashedPassword, UserId
@@ -24,9 +24,12 @@ class ChangePasswordCommand:
 
 
 class ChangePasswordHandler:
-    def __init__(self, uow: UnitOfWork, password_hasher: PasswordHasher) -> None:
+    def __init__(
+        self, uow: UnitOfWork, password_hasher: PasswordHasher, clock: Clock
+    ) -> None:
         self._uow = uow
         self._hasher = password_hasher
+        self._clock = clock
 
     async def execute(self, command: ChangePasswordCommand) -> None:
         user = await self._uow.users.get_by_id(UserId(command.user_id))
@@ -41,4 +44,6 @@ class ChangePasswordHandler:
             HashedPassword(await self._hasher.hash(command.new_password))
         )
         await self._uow.users.update(user)
+        # A changed password ends every existing session.
+        await self._uow.refresh_tokens.revoke_all_for_user(user.id, self._clock.now())
         await self._uow.commit()

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.core.config import get_settings
 
 # Import models so they register on Base.metadata for autogenerate.
-from app.infrastructure.database.models import user  # noqa: F401
+from app.infrastructure.database.models import refresh_token, user  # noqa: F401
 from app.infrastructure.database.models.base import Base
 
 config = context.config

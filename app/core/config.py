@@ -49,6 +49,9 @@ class JwtSettings(BaseModel):
     algorithm: Literal["HS256", "HS384", "HS512"] = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
+    # iss/aud claims, validated on decode. Part of the project-rename checklist.
+    issuer: str = "fastapi-starter"
+    audience: str = "fastapi-starter"
 
 
 class RedisSettings(BaseModel):

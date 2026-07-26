@@ -9,6 +9,7 @@ ORM never imports value objects' validation logic at call sites.
 
 from app.domain.users.entities import User
 from app.domain.users.value_objects import Email, HashedPassword, UserId
+from app.infrastructure.database.mappers.tz import as_utc
 from app.infrastructure.database.models.user import UserModel
 
 
@@ -18,7 +19,7 @@ def to_domain(model: UserModel) -> User:
         email=Email(model.email),
         hashed_password=HashedPassword(model.hashed_password),
         is_active=model.is_active,
-        created_at=model.created_at,
+        created_at=as_utc(model.created_at),
     )
 
 

@@ -32,6 +32,10 @@ class AppSettings(BaseModel):
     name: str = "fastapi-starter"
     debug: bool = False
     cors_origins: list[str] = Field(default_factory=list)
+    # Host-header allow-list (TrustedHostMiddleware). The wildcard default is
+    # for local development; production requires explicit hosts.
+    allowed_hosts: list[str] = Field(default_factory=lambda: ["*"])
+    max_request_body_bytes: int = 1_048_576  # 1 MiB
 
 
 class DatabaseSettings(BaseModel):
@@ -99,6 +103,8 @@ class Settings(BaseSettings):
             problems.append("APP__DEBUG must be false in production")
         if "*" in self.app.cors_origins:
             problems.append("APP__CORS_ORIGINS must not contain a wildcard")
+        if "*" in self.app.allowed_hosts:
+            problems.append("APP__ALLOWED_HOSTS must list explicit hosts")
         if problems:
             raise ValueError("unsafe production configuration: " + "; ".join(problems))
         return self

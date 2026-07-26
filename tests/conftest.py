@@ -32,12 +32,20 @@ from app.main import create_app
 from tests.fakes import InMemoryAdaptersProvider
 
 
-def make_test_settings(*, auth_rate_limit_requests: int = 100) -> Settings:
+def make_test_settings(
+    *,
+    auth_rate_limit_requests: int = 100,
+    allowed_hosts: list[str] | None = None,
+) -> Settings:
     return Settings(
         environment=Environment.TEST,
         # debug=False keeps Starlette's debug tracebacks out of the way so the
         # catch-all problem+json handler is exercised exactly as in production.
-        app=AppSettings(name="test", debug=False),
+        app=AppSettings(
+            name="test",
+            debug=False,
+            allowed_hosts=allowed_hosts if allowed_hosts is not None else ["*"],
+        ),
         database=DatabaseSettings(url=SecretStr("sqlite+aiosqlite:///:memory:")),
         jwt=JwtSettings(
             secret=SecretStr("test-secret-key-please-change-0123456789")  # >=32 bytes

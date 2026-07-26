@@ -19,13 +19,17 @@ class EnvFreeSettings(Settings):
     )
 
 
+def _safe_app_settings() -> AppSettings:
+    return AppSettings(debug=False, allowed_hosts=["api.example.com"])
+
+
 def _production_settings(
     app: AppSettings | None = None,
     jwt: JwtSettings | None = None,
 ) -> Settings:
     return EnvFreeSettings(
         environment=Environment.PRODUCTION,
-        app=app if app is not None else AppSettings(debug=False),
+        app=app if app is not None else _safe_app_settings(),
         jwt=jwt if jwt is not None else JwtSettings(secret=SecretStr(STRONG_SECRET)),
     )
 
@@ -52,7 +56,14 @@ def test_production_rejects_debug_mode() -> None:
 
 def test_production_rejects_wildcard_cors() -> None:
     with pytest.raises(ValidationError, match="wildcard"):
-        _production_settings(app=AppSettings(cors_origins=["*"]))
+        _production_settings(
+            app=AppSettings(cors_origins=["*"], allowed_hosts=["api.example.com"])
+        )
+
+
+def test_production_rejects_wildcard_allowed_hosts() -> None:
+    with pytest.raises(ValidationError, match="ALLOWED_HOSTS"):
+        _production_settings(app=AppSettings(allowed_hosts=["*"]))
 
 
 def test_non_production_accepts_defaults() -> None:

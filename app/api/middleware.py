@@ -11,8 +11,10 @@ import uuid
 from typing import Final
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -81,13 +83,89 @@ class RequestContextMiddleware:
             structlog.contextvars.clear_contextvars()
 
 
+class SecurityHeadersMiddleware:
+    """Stamps baseline security headers on every response (pure ASGI)."""
+
+    def __init__(self, app: ASGIApp, *, hsts: bool) -> None:
+        self._app = app
+        self._hsts = hsts
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers.setdefault("X-Content-Type-Options", "nosniff")
+                headers.setdefault("X-Frame-Options", "DENY")
+                headers.setdefault("Referrer-Policy", "no-referrer")
+                headers.setdefault(
+                    "Permissions-Policy", "geolocation=(), camera=(), microphone=()"
+                )
+                if self._hsts:
+                    headers.setdefault(
+                        "Strict-Transport-Security",
+                        "max-age=63072000; includeSubDomains",
+                    )
+            await send(message)
+
+        await self._app(scope, receive, send_with_headers)
+
+
+class BodySizeLimitMiddleware:
+    """Rejects request bodies over the configured cap with a 413 (pure ASGI).
+
+    The overflow is raised while the downstream handler reads the body, so it
+    surfaces through the normal exception handlers as problem+json.
+    """
+
+    def __init__(self, app: ASGIApp, *, max_bytes: int) -> None:
+        self._app = app
+        self._max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        received = 0
+
+        async def limited_receive() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > self._max_bytes:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        detail="Request body too large.",
+                    )
+            return message
+
+        await self._app(scope, limited_receive, send)
+
+
 def setup_middleware(app: FastAPI, settings: Settings) -> None:
+    # add_middleware() wraps outside-in: the LAST one added is the outermost.
+    # Effective order: CORS → request context/access log → TrustedHost → GZip
+    # → security headers → body cap → routing.
+    app.add_middleware(
+        BodySizeLimitMiddleware, max_bytes=settings.app.max_request_body_bytes
+    )
+    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.is_production)
+    app.add_middleware(GZipMiddleware)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.app.allowed_hosts)
     app.add_middleware(RequestContextMiddleware)
     if settings.app.cors_origins:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=settings.app.cors_origins,
             allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", REQUEST_ID_HEADER],
+            # Without this, browser JS cannot read the correlation id it needs
+            # to report alongside errors.
+            expose_headers=[REQUEST_ID_HEADER],
         )

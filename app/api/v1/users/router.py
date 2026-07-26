@@ -9,9 +9,14 @@ from fastapi import APIRouter, Query, status
 from app.api.dependencies.auth import CurrentUser
 from app.api.exception_handlers import problem_responses
 from app.api.v1.users.schemas import (
+    ChangePasswordRequest,
     CreateUserRequest,
     UserPageResponse,
     UserResponse,
+)
+from app.application.users.commands.change_password import (
+    ChangePasswordCommand,
+    ChangePasswordHandler,
 )
 from app.application.users.commands.create_user import (
     CreateUserCommand,
@@ -38,6 +43,21 @@ async def create_user(
         CreateUserCommand(email=body.email, password=body.password)
     )
     return UserResponse.model_validate(view)
+
+
+@router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePasswordRequest,
+    handler: FromDishka[ChangePasswordHandler],
+    current_user: CurrentUser,
+) -> None:
+    await handler.execute(
+        ChangePasswordCommand(
+            user_id=current_user.id.value,
+            current_password=body.current_password,
+            new_password=body.new_password,
+        )
+    )
 
 
 @router.get("/me", response_model=UserResponse)

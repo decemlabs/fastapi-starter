@@ -7,8 +7,13 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.users.entities import User
+from app.domain.users.exceptions import UserNotFoundError
 from app.domain.users.value_objects import Email, UserId
-from app.infrastructure.database.mappers.user_mapper import to_domain, to_model
+from app.infrastructure.database.mappers.user_mapper import (
+    apply_to_model,
+    to_domain,
+    to_model,
+)
 from app.infrastructure.database.models.user import UserModel
 
 
@@ -24,6 +29,14 @@ class SqlAlchemyUserRepository:
 
     async def add(self, user: User) -> None:
         self._session.add(to_model(user))
+
+    async def update(self, user: User) -> None:
+        # ``session.get`` returns the tracked instance (or fetches it), so the
+        # copied fields are flushed as an UPDATE on commit.
+        model = await self._session.get(UserModel, user.id.value)
+        if model is None:
+            raise UserNotFoundError
+        apply_to_model(user, model)
 
     async def get_by_id(self, user_id: UserId) -> User | None:
         model = await self._session.get(UserModel, user_id.value)

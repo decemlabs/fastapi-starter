@@ -16,6 +16,11 @@ class CreateUserRequest(BaseModel):
     password: Annotated[str, Field(min_length=8, max_length=128)]
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: Annotated[str, Field(min_length=8, max_length=128)]
+
+
 class UserResponse(BaseModel):
     # from_attributes lets us build this straight from a UserView dataclass.
     model_config = ConfigDict(from_attributes=True)

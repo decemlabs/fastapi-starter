@@ -43,7 +43,7 @@ observability = [
     "opentelemetry-exporter-otlp-proto-http>=1.29",
     "opentelemetry-instrumentation-fastapi>=0.50b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.50b0",
-    "opentelemetry-instrumentation-asyncpg>=0.50b0",
+    "opentelemetry-instrumentation-asyncpg>=0.65b0",
 ]
 
 [build-system]

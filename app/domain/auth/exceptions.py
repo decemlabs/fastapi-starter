@@ -11,4 +11,10 @@ class InvalidCredentialsError(DomainError):
 
 
 class InvalidTokenError(DomainError):
-    message = "Invalid or expired token."
+    message = "Invalid token."
+
+
+class TokenExpiredError(InvalidTokenError):
+    """Distinct from invalid: the client should refresh or re-authenticate."""
+
+    message = "Token has expired."

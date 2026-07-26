@@ -39,8 +39,7 @@ async def test_list_users_is_cursor_paginated(client: AsyncClient) -> None:
     headers = await _auth_headers(client)
     for i in range(3):
         r = await client.post(
-            "/api/v1/users",
-            headers=headers,
+            "/api/v1/auth/register",
             json={"email": f"u{i}@example.com", "password": "supersecret"},
         )
         assert r.status_code == 201, r.text

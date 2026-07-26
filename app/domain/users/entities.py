@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Self
 
 from app.domain.shared.entity import AggregateRoot
+from app.domain.users.events import UserRegistered
 from app.domain.users.value_objects import Email, HashedPassword, UserId
 
 
@@ -34,13 +35,21 @@ class User(AggregateRoot[UserId]):
         hashed_password: HashedPassword,
         created_at: datetime,
     ) -> Self:
-        return cls(
+        user = cls(
             id=user_id,
             email=email,
             hashed_password=hashed_password,
             is_active=True,
             created_at=created_at,
         )
+        user.record_event(
+            UserRegistered(
+                user_id=user_id.value,
+                email=str(email),
+                occurred_at=created_at,
+            )
+        )
+        return user
 
     def deactivate(self) -> None:
         self.is_active = False

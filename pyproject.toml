@@ -3,6 +3,7 @@ name = "fastapi-starter"
 version = "0.1.0"
 description = "Production-ready FastAPI backend template — Clean Architecture, DDD-lite, CQRS-lite."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
@@ -16,17 +17,33 @@ dependencies = [
     "pyjwt[crypto]>=2.10",
     "pwdlib[argon2]>=0.2.1",
     "structlog>=24.4",
+    "anyio>=4.4",
+    "redis>=5.2",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
     "httpx>=0.27",
     "aiosqlite>=0.20",
     "ruff>=0.8",
     "mypy>=1.13",
     "pyright>=1.1.390",
+    "import-linter>=2.1",
+    "testcontainers[postgres]>=4.9",
+    "pre-commit>=4.0",
+    { include-group = "observability" },
+]
+# Optional in production — install with `uv sync --group observability`.
+# Included in dev so both type checkers cover app/core/telemetry.py.
+observability = [
+    "opentelemetry-sdk>=1.29",
+    "opentelemetry-exporter-otlp-proto-http>=1.29",
+    "opentelemetry-instrumentation-fastapi>=0.50b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.50b0",
+    "opentelemetry-instrumentation-asyncpg>=0.50b0",
 ]
 
 [build-system]
@@ -55,13 +72,24 @@ known-first-party = ["app", "tests"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests"]
+files = ["app", "tests", "scripts"]
 exclude = ["migrations/"]
 warn_unreachable = true
 enable_error_code = ["redundant-expr", "possibly-undefined", "truthy-bool"]
 
+# The OTel instrumentation packages ship no py.typed marker. Scoped to those
+# exact modules; the rest of the codebase keeps full strictness.
+[[tool.mypy.overrides]]
+module = ["opentelemetry.instrumentation.*"]
+ignore_missing_imports = true
+
+# …and the one module calling their (untyped) constructors.
+[[tool.mypy.overrides]]
+module = ["app.core.telemetry"]
+disable_error_code = ["no-untyped-call"]
+
 [tool.pyright]
-include = ["app", "tests"]
+include = ["app", "tests", "scripts"]
 exclude = ["**/__pycache__", ".venv", "migrations"]
 venvPath = "."
 venv = ".venv"
@@ -80,6 +108,117 @@ root = "app/ioc"
 extraPaths = ["."]
 reportUnknownVariableType = false
 
+# redis-py types `Redis.from_url` with `**kwargs: Unknown`, so the one factory
+# that constructs the client trips reportUnknownMemberType. Scoped to the cache
+# adapter package; nothing else is relaxed.
+[[tool.pyright.executionEnvironments]]
+root = "app/infrastructure/cache"
+extraPaths = ["."]
+reportUnknownMemberType = false
+
+# tests/fakes defines Dishka override providers, so it needs the same scoped
+# `provide` relaxation as app/ioc (see the comment there).
+[[tool.pyright.executionEnvironments]]
+root = "tests/fakes"
+extraPaths = ["."]
+reportUnknownVariableType = false
+
+# The OTel instrumentation packages ship no py.typed marker; only the module
+# that touches them relaxes the missing-stubs / unknown-member reports.
+[[tool.pyright.executionEnvironments]]
+root = "app/core/telemetry"
+extraPaths = ["."]
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config -m 'not pg'"
+xfail_strict = true
+filterwarnings = ["error"]
+markers = [
+    "unit: pure in-memory tests (domain, application with fakes)",
+    "integration: full-app tests over in-memory SQLite",
+    "pg: tests that require Docker and run against real Postgres (deselected by default)",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "\\.\\.\\.",             # Protocol method bodies
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+# The dependency rule (ARCHITECTURE.md): api → application → domain.
+# infrastructure and ioc sit outside the stack; the forbidden contracts below
+# pin down what the inner layers may never import.
+[[tool.importlinter.contracts]]
+name = "Layered architecture: api → application → domain"
+type = "layers"
+layers = ["app.api", "app.application", "app.domain"]
+
+[[tool.importlinter.contracts]]
+name = "Domain is pure (stdlib only)"
+type = "forbidden"
+source_modules = ["app.domain"]
+forbidden_modules = [
+    "app.application",
+    "app.api",
+    "app.infrastructure",
+    "app.ioc",
+    "app.core",
+    "fastapi",
+    "starlette",
+    "sqlalchemy",
+    "alembic",
+    "pydantic",
+    "pydantic_settings",
+    "dishka",
+    "jwt",
+    "pwdlib",
+    "redis",
+    "structlog",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application depends only on the domain"
+type = "forbidden"
+source_modules = ["app.application"]
+forbidden_modules = [
+    "app.api",
+    "app.infrastructure",
+    "app.ioc",
+    "app.core",
+    "fastapi",
+    "starlette",
+    "sqlalchemy",
+    "alembic",
+    "pydantic",
+    "pydantic_settings",
+    "dishka",
+    "jwt",
+    "pwdlib",
+    "redis",
+    "structlog",
+]
+
+[[tool.importlinter.contracts]]
+name = "API never touches infrastructure directly"
+type = "forbidden"
+source_modules = ["app.api"]
+forbidden_modules = ["app.infrastructure", "app.ioc"]

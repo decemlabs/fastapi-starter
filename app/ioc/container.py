@@ -7,22 +7,33 @@ This is the one place that knows about every layer at once. Everything else
 depends only on abstractions and is wired together here.
 """
 
-from dishka import AsyncContainer, make_async_container
+from dishka import AsyncContainer, Provider, make_async_container
 from dishka.integrations.fastapi import FastapiProvider
 
 from app.core.config import Settings
+from app.ioc.providers.cache import CacheProvider
 from app.ioc.providers.config import ConfigProvider
 from app.ioc.providers.database import DatabaseProvider
+from app.ioc.providers.events import EventsProvider
 from app.ioc.providers.security import SecurityProvider
 from app.ioc.providers.use_cases import UseCasesProvider
 
 
-def create_container(settings: Settings) -> AsyncContainer:
+def create_container(settings: Settings, *extra_providers: Provider) -> AsyncContainer:
+    """Assembles the container.
+
+    ``extra_providers`` come last, so a provider declared with
+    ``override=True`` replaces a default binding — the seam tests use to swap
+    real adapters (Redis, Argon2) for in-memory doubles.
+    """
     return make_async_container(
         ConfigProvider(),
         DatabaseProvider(),
         SecurityProvider(),
+        CacheProvider(),
+        EventsProvider(),
         UseCasesProvider(),
         FastapiProvider(),
+        *extra_providers,
         context={Settings: settings},
     )

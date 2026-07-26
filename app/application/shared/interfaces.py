@@ -5,10 +5,14 @@ libraries, password hashers, ORMs). Dependencies point inward: infrastructure
 depends on these, not the other way around.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
+from uuid import UUID
 
+from app.domain.auth.repositories import RefreshTokenRepository
+from app.domain.shared.events import DomainEvent
 from app.domain.users.repositories import UserRepository
 
 # The two kinds of token this application issues.
@@ -21,12 +25,42 @@ class Clock(Protocol):
     def now(self) -> datetime: ...
 
 
+class EventDispatcher(Protocol):
+    """Delivers domain events after a successful commit.
+
+    The in-process adapter is the lean default; a transactional outbox is the
+    production upgrade path (see app/infrastructure/messaging/README.md).
+    """
+
+    async def dispatch(self, events: Sequence[DomainEvent]) -> None: ...
+
+
 class PasswordHasher(Protocol):
-    """Hashes and verifies passwords. The algorithm lives in infrastructure."""
+    """Hashes and verifies passwords. The algorithm lives in infrastructure.
 
-    def hash(self, plain_password: str) -> str: ...
+    Async because password hashing is deliberately CPU-expensive: adapters
+    offload to a worker thread so the event loop keeps serving requests.
+    """
 
-    def verify(self, plain_password: str, hashed_password: str) -> bool: ...
+    async def hash(self, plain_password: str) -> str: ...
+
+    async def verify(self, plain_password: str, hashed_password: str) -> bool: ...
+
+
+@dataclass(frozen=True, slots=True)
+class RateLimitDecision:
+    """Outcome of a rate-limit check."""
+
+    allowed: bool
+    retry_after_seconds: int
+
+
+class RateLimiter(Protocol):
+    """Counts requests per key within a time window (backend in infrastructure)."""
+
+    async def check(
+        self, key: str, limit: int, window_seconds: int
+    ) -> RateLimitDecision: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,14 +69,27 @@ class TokenPayload:
 
     subject: str
     token_type: TokenType
+    token_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class IssuedToken:
+    """A freshly signed token plus the metadata the caller must persist."""
+
+    token: str
+    expires_at: datetime
 
 
 class TokenService(Protocol):
-    """Issues and decodes authentication tokens."""
+    """Issues and decodes authentication tokens.
+
+    Refresh tokens carry a caller-supplied ``jti`` so the caller can persist
+    a matching server-side record (rotation/revocation state).
+    """
 
     def create_access_token(self, subject: str) -> str: ...
 
-    def create_refresh_token(self, subject: str) -> str: ...
+    def create_refresh_token(self, subject: str, token_id: UUID) -> IssuedToken: ...
 
     def decode(self, token: str) -> TokenPayload: ...
 
@@ -55,7 +102,14 @@ class UnitOfWork(Protocol):
     when its scope closes (the DI container owns the session lifecycle).
     """
 
-    users: UserRepository
+    # Declared as read-only properties so implementations (and test fakes)
+    # may expose more specific repository types — attributes would be
+    # invariant and reject them.
+    @property
+    def users(self) -> UserRepository: ...
+
+    @property
+    def refresh_tokens(self) -> RefreshTokenRepository: ...
 
     async def commit(self) -> None: ...
 

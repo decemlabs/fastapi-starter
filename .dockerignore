@@ -12,4 +12,6 @@ htmlcov
 .idea
 .vscode
 .DS_Store
-tests
+.claude
+.github
+.instance

@@ -3,12 +3,27 @@
 
 """SQLAlchemy unit of work."""
 
+from typing import Final
+
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.auth.repositories import RefreshTokenRepository
+from app.domain.users.exceptions import EmailAlreadyExistsError
 from app.domain.users.repositories import UserRepository
+from app.infrastructure.database.repositories.refresh_token_repository import (
+    SqlAlchemyRefreshTokenRepository,
+)
 from app.infrastructure.database.repositories.user_repository import (
     SqlAlchemyUserRepository,
 )
+
+# The unique-email constraint under both dialects: Postgres reports the index
+# name (deterministic thanks to the metadata naming convention), SQLite the
+# qualified column. The constraint is the source of truth for uniqueness —
+# ``exists_by_email`` is only a fast-path pre-check and cannot stop a
+# concurrent duplicate.
+_EMAIL_UNIQUE_MARKERS: Final = ("ix_users_email", "users.email")
 
 
 class SqlAlchemyUnitOfWork:
@@ -17,15 +32,25 @@ class SqlAlchemyUnitOfWork:
     The session's lifecycle — and therefore rollback-on-error — is owned by the
     DI container, which yields one session per request and closes it at the end
     (an uncommitted session rolls back on close). This class only decides *when*
-    to commit.
+    to commit, and translates constraint violations into domain errors.
     """
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self.users: UserRepository = SqlAlchemyUserRepository(session)
+        self.refresh_tokens: RefreshTokenRepository = SqlAlchemyRefreshTokenRepository(
+            session
+        )
 
     async def commit(self) -> None:
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as error:
+            await self._session.rollback()
+            message = str(error.orig)
+            if any(marker in message for marker in _EMAIL_UNIQUE_MARKERS):
+                raise EmailAlreadyExistsError from error
+            raise
 
     async def rollback(self) -> None:
         await self._session.rollback()

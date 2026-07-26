@@ -4,16 +4,20 @@
 """Auth API endpoints: public registration, login, and token refresh."""
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
+from app.api.dependencies.rate_limit import rate_limit_auth
+from app.api.exception_handlers import problem_responses
 from app.api.v1.auth.schemas import (
     LoginRequest,
+    LogoutRequest,
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
 )
 from app.api.v1.users.schemas import UserResponse
 from app.application.auth.commands.login import LoginCommand, LoginHandler
+from app.application.auth.commands.logout import LogoutCommand, LogoutHandler
 from app.application.auth.commands.refresh_token import (
     RefreshTokenCommand,
     RefreshTokenHandler,
@@ -27,7 +31,11 @@ router = APIRouter(prefix="/auth", tags=["auth"], route_class=DishkaRoute)
 
 
 @router.post(
-    "/register", status_code=status.HTTP_201_CREATED, response_model=UserResponse
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    response_model=UserResponse,
+    responses=problem_responses(409, 429),
+    dependencies=[Depends(rate_limit_auth)],
 )
 async def register(
     body: RegisterRequest,
@@ -39,7 +47,12 @@ async def register(
     return UserResponse.model_validate(view)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    responses=problem_responses(401, 429),
+    dependencies=[Depends(rate_limit_auth)],
+)
 async def login(
     body: LoginRequest,
     handler: FromDishka[LoginHandler],
@@ -54,7 +67,19 @@ async def login(
     )
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=problem_responses(401),
+)
+async def logout(
+    body: LogoutRequest,
+    handler: FromDishka[LogoutHandler],
+) -> None:
+    await handler.execute(LogoutCommand(refresh_token=body.refresh_token))
+
+
+@router.post("/refresh", response_model=TokenResponse, responses=problem_responses(401))
 async def refresh(
     body: RefreshRequest,
     handler: FromDishka[RefreshTokenHandler],

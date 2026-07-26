@@ -5,7 +5,12 @@
 
 from dataclasses import dataclass
 
-from app.application.shared.interfaces import Clock, PasswordHasher, UnitOfWork
+from app.application.shared.interfaces import (
+    Clock,
+    EventDispatcher,
+    PasswordHasher,
+    UnitOfWork,
+)
 from app.application.users.dto import UserView
 from app.domain.users.entities import User
 from app.domain.users.exceptions import EmailAlreadyExistsError
@@ -26,10 +31,12 @@ class CreateUserHandler:
         uow: UnitOfWork,
         password_hasher: PasswordHasher,
         clock: Clock,
+        event_dispatcher: EventDispatcher,
     ) -> None:
         self._uow = uow
         self._hasher = password_hasher
         self._clock = clock
+        self._events = event_dispatcher
 
     async def execute(self, command: CreateUserCommand) -> UserView:
         email = Email(command.email)
@@ -40,11 +47,13 @@ class CreateUserHandler:
         user = User.create(
             user_id=UserId.new(),
             email=email,
-            hashed_password=HashedPassword(self._hasher.hash(command.password)),
+            hashed_password=HashedPassword(await self._hasher.hash(command.password)),
             created_at=self._clock.now(),
         )
         await self._uow.users.add(user)
         await self._uow.commit()
+        # Events are delivered only after the transaction is durable.
+        await self._events.dispatch(user.pull_events())
 
         return UserView(
             id=user.id.value,

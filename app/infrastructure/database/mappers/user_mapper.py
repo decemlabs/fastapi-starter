@@ -9,6 +9,7 @@ ORM never imports value objects' validation logic at call sites.
 
 from app.domain.users.entities import User
 from app.domain.users.value_objects import Email, HashedPassword, UserId
+from app.infrastructure.database.mappers.tz import as_utc
 from app.infrastructure.database.models.user import UserModel
 
 
@@ -18,7 +19,7 @@ def to_domain(model: UserModel) -> User:
         email=Email(model.email),
         hashed_password=HashedPassword(model.hashed_password),
         is_active=model.is_active,
-        created_at=model.created_at,
+        created_at=as_utc(model.created_at),
     )
 
 
@@ -30,3 +31,14 @@ def to_model(user: User) -> UserModel:
         is_active=user.is_active,
         created_at=user.created_at,
     )
+
+
+def apply_to_model(user: User, model: UserModel) -> None:
+    """Copies the aggregate's state onto a session-tracked model.
+
+    Explicit field-by-field copy (not ``session.merge``) keeps the Data Mapper
+    honest: what persists on update is exactly what is listed here.
+    """
+    model.email = str(user.email)
+    model.hashed_password = user.hashed_password.value
+    model.is_active = user.is_active

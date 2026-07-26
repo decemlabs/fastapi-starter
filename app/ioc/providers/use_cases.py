@@ -10,7 +10,9 @@ read model, clock) are resolved by Dishka from the other providers.
 from dishka import Provider, Scope, provide
 
 from app.application.auth.commands.login import LoginHandler
+from app.application.auth.commands.logout import LogoutHandler
 from app.application.auth.commands.refresh_token import RefreshTokenHandler
+from app.application.users.commands.change_password import ChangePasswordHandler
 from app.application.users.commands.create_user import CreateUserHandler
 from app.application.users.queries.get_user import GetUserHandler
 from app.application.users.queries.list_users import ListUsersHandler
@@ -19,8 +21,10 @@ from app.application.users.queries.list_users import ListUsersHandler
 class UseCasesProvider(Provider):
     scope = Scope.REQUEST
 
+    change_password = provide(ChangePasswordHandler)
     create_user = provide(CreateUserHandler)
     login = provide(LoginHandler)
+    logout = provide(LogoutHandler)
     refresh_token = provide(RefreshTokenHandler)
     get_user = provide(GetUserHandler)
     list_users = provide(ListUsersHandler)

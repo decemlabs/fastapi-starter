@@ -10,7 +10,13 @@ are derived from it so lower layers depend only on the slice they need.
 
 from dishka import Provider, Scope, from_context, provide
 
-from app.core.config import DatabaseSettings, JwtSettings, Settings
+from app.core.config import (
+    DatabaseSettings,
+    JwtSettings,
+    RateLimitSettings,
+    RedisSettings,
+    Settings,
+)
 
 
 class ConfigProvider(Provider):
@@ -25,3 +31,11 @@ class ConfigProvider(Provider):
     @provide
     def jwt_settings(self, settings: Settings) -> JwtSettings:
         return settings.jwt
+
+    @provide
+    def redis_settings(self, settings: Settings) -> RedisSettings:
+        return settings.redis
+
+    @provide
+    def rate_limit_settings(self, settings: Settings) -> RateLimitSettings:
+        return settings.rate_limit

@@ -75,6 +75,14 @@ def create_app(
     setup_middleware(app, resolved)
     register_exception_handlers(app)
     app.include_router(api_v1_router)
+
+    if resolved.observability.enabled:
+        # Imported lazily: the base install has no OpenTelemetry packages
+        # (they live in the `observability` dependency group).
+        from app.core.telemetry import configure_telemetry
+
+        configure_telemetry(app, resolved)
+
     return app
 
 

@@ -77,6 +77,17 @@ exclude = ["migrations/"]
 warn_unreachable = true
 enable_error_code = ["redundant-expr", "possibly-undefined", "truthy-bool"]
 
+# The OTel instrumentation packages ship no py.typed marker. Scoped to those
+# exact modules; the rest of the codebase keeps full strictness.
+[[tool.mypy.overrides]]
+module = ["opentelemetry.instrumentation.*"]
+ignore_missing_imports = true
+
+# …and the one module calling their (untyped) constructors.
+[[tool.mypy.overrides]]
+module = ["app.core.telemetry"]
+disable_error_code = ["no-untyped-call"]
+
 [tool.pyright]
 include = ["app", "tests", "scripts"]
 exclude = ["**/__pycache__", ".venv", "migrations"]
@@ -111,6 +122,16 @@ reportUnknownMemberType = false
 root = "tests/fakes"
 extraPaths = ["."]
 reportUnknownVariableType = false
+
+# The OTel instrumentation packages ship no py.typed marker; only the module
+# that touches them relaxes the missing-stubs / unknown-member reports.
+[[tool.pyright.executionEnvironments]]
+root = "app/core/telemetry"
+extraPaths = ["."]
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

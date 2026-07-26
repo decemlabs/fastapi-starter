@@ -28,6 +28,12 @@ def configure_logging(settings: Settings) -> None:
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.StackInfoRenderer(),
     ]
+    if settings.observability.enabled:
+        # Correlates every log event with the active span (lazy import: the
+        # OTel packages are an optional dependency group).
+        from app.core.telemetry import trace_context_processor
+
+        shared_processors.append(trace_context_processor)
 
     tail_processors: list[structlog.types.Processor]
     if settings.environment is Environment.LOCAL:

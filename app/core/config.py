@@ -68,6 +68,18 @@ class RateLimitSettings(BaseModel):
     auth_window_seconds: int = 60
 
 
+class ObservabilitySettings(BaseModel):
+    """OpenTelemetry tracing/metrics — off by default, one flag to enable.
+
+    Requires the optional dependency group: ``uv sync --group observability``.
+    """
+
+    enabled: bool = False
+    otlp_endpoint: str = "http://localhost:4318"
+    # Falls back to the app name when empty.
+    service_name: str = ""
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -82,6 +94,7 @@ class Settings(BaseSettings):
     jwt: JwtSettings = Field(default_factory=JwtSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
+    observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     @property
     def is_production(self) -> bool:
